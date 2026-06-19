@@ -1,11 +1,11 @@
 #pragma once
 
 // ── Wi-Fi credentials ────────────────────────────────────────────
-#define WIFI_SSID      "Virus"
-#define WIFI_PASSWORD  "67676767"
+#define WIFI_SSID      "Sdarxx"
+#define WIFI_PASSWORD  "sack136_noob"
 
 // ── MQTT broker ──────────────────────────────────────────────────
-#define MQTT_BROKER_HOST   "10.221.47.145"   // IP of Mosquitto broker
+#define MQTT_BROKER_HOST   "10.157.107.145"   // IP of Mosquitto broker
 #define MQTT_BROKER_PORT   1883
 #define MQTT_CLIENT_ID     "nexbell-esp32s3-door"
 
