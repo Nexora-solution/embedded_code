@@ -2,6 +2,7 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include "../config/Config.h"
+#include "../camera/CameraCapture.h"
 
 /**
  * Thin wrapper over PubSubClient.
@@ -20,6 +21,9 @@ public:
     });
     _reconnect();
   }
+
+  /** Call after begin() to register the camera module for capture triggers. */
+  void setCamera(CameraCapture* cam) { _camera = cam; }
 
   /** Keep connection alive, process inbound messages. */
   void maintain() {
@@ -44,8 +48,9 @@ public:
   bool isConnected() { return _client.connected(); }
 
 private:
-  WiFiClient   _wifiClient;
-  PubSubClient _client;
+  WiFiClient    _wifiClient;
+  PubSubClient  _client;
+  CameraCapture* _camera = nullptr;
 
   void _reconnect() {
     int attempts = 0;
@@ -55,6 +60,8 @@ private:
         Serial.println("[MQTT] Connected.");
         _client.subscribe(TOPIC_UNLOCK_CMD);
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_UNLOCK_CMD);
+        _client.subscribe(TOPIC_CAMERA_TRIGGER);
+        Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_CAMERA_TRIGGER);
       } else {
         Serial.printf("[MQTT] Failed (rc=%d), retry in 3s\n", _client.state());
         delay(3000);
@@ -72,6 +79,17 @@ private:
       Serial.println("[DOOR] Unlock command received from edge service.");
       // Stub: in production, toggle GPIO relay here.
       // digitalWrite(RELAY_PIN, HIGH); delay(3000); digitalWrite(RELAY_PIN, LOW);
+    }
+
+    // Camera capture trigger: payload = visitId (numeric string)
+    if (topicStr == TOPIC_CAMERA_TRIGGER) {
+      unsigned long visitId = msg.toInt();
+      Serial.printf("[MQTT] Camera capture triggered for visitId=%lu\n", visitId);
+      if (_camera != nullptr) {
+        _camera->capture(*this, visitId);
+      } else {
+        Serial.println("[MQTT] Camera not registered — skipping capture.");
+      }
     }
   }
 };

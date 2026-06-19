@@ -11,13 +11,15 @@
 #include "src/sensors/PresenceSensor.h"
 #include "src/sensors/DoorSensor.h"
 #include "src/audio/AudioCapture.h"
+#include "src/camera/CameraCapture.h"
 
 // Instantiate modules
-WifiManager  wifiManager;
-MqttGateway  mqttGateway;
+WifiManager    wifiManager;
+MqttGateway    mqttGateway;
 PresenceSensor presenceSensor;
-DoorSensor   doorSensor;
-AudioCapture  audioCapture;
+DoorSensor     doorSensor;
+AudioCapture   audioCapture;
+CameraCapture  cameraCapture;
 
 void setup() {
   Serial.begin(115200);
@@ -33,6 +35,8 @@ void setup() {
   presenceSensor.begin();
   doorSensor.begin();         // attaches interrupt internally
   audioCapture.begin();
+  cameraCapture.begin();      // initialise OV2640
+  mqttGateway.setCamera(&cameraCapture); // register for capture trigger
 
   Serial.println("[NexBell] Boot complete.");
 }

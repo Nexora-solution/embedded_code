@@ -21,8 +21,8 @@ class DoorSensor {
 public:
   void begin() {
     // MC38 output is typically HIGH (open) when the magnet is removed.
-    // Use INPUT_PULLDOWN to ensure a stable LOW when the door is closed.
-    pinMode(MC38_PIN, INPUT_PULLDOWN);
+    // Use INPUT_PULLUP to pull the pin HIGH when the door opens.
+    pinMode(MC38_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(MC38_PIN), doorISR, CHANGE);
     Serial.println("[MC38] Door sensor ISR attached.");
   }
