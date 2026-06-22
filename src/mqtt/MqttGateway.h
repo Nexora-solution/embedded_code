@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include "../config/Config.h"
 #include "../camera/CameraCapture.h"
+#include "../audio/AudioPlayback.h"
 
 /**
  * Thin wrapper over PubSubClient.
@@ -19,11 +20,15 @@ public:
     _client.setCallback([this](char* topic, byte* payload, unsigned int length) {
       _onMessage(topic, payload, length);
     });
+    _client.setBufferSize(32768); // Aumentado a 32KB para soportar fotos Base64 de la cámara
     _reconnect();
   }
 
   /** Call after begin() to register the camera module for capture triggers. */
   void setCamera(CameraCapture* cam) { _camera = cam; }
+  
+  /** Call after begin() to register the audio playback module. */
+  void setAudioPlayback(AudioPlayback* ap) { _audioPlayback = ap; }
 
   /** Keep connection alive, process inbound messages. */
   void maintain() {
@@ -51,6 +56,7 @@ private:
   WiFiClient    _wifiClient;
   PubSubClient  _client;
   CameraCapture* _camera = nullptr;
+  AudioPlayback* _audioPlayback = nullptr;
 
   void _reconnect() {
     int attempts = 0;
@@ -62,6 +68,8 @@ private:
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_UNLOCK_CMD);
         _client.subscribe(TOPIC_CAMERA_TRIGGER);
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_CAMERA_TRIGGER);
+        _client.subscribe(TOPIC_AUDIO_PLAYBACK);
+        Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_AUDIO_PLAYBACK);
       } else {
         Serial.printf("[MQTT] Failed (rc=%d), retry in 3s\n", _client.state());
         delay(3000);
@@ -72,6 +80,15 @@ private:
 
   void _onMessage(char* topic, byte* payload, unsigned int length) {
     String topicStr(topic);
+
+    // Si es audio binario, lo pasamos directo al DAC/I2S sin imprimir
+    if (topicStr == TOPIC_AUDIO_PLAYBACK) {
+      if (_audioPlayback != nullptr) {
+        _audioPlayback->reproducirAudioMQTT(payload, length);
+      }
+      return;
+    }
+
     String msg((char*)payload, length);
     Serial.printf("[MQTT] Received [%s]: %s\n", topic, msg.c_str());
 
@@ -81,14 +98,14 @@ private:
       // digitalWrite(RELAY_PIN, HIGH); delay(3000); digitalWrite(RELAY_PIN, LOW);
     }
 
-    // Camera capture trigger: payload = visitId (numeric string)
+    // Camera video streaming commands: START_VIDEO or STOP_VIDEO
     if (topicStr == TOPIC_CAMERA_TRIGGER) {
-      unsigned long visitId = msg.toInt();
-      Serial.printf("[MQTT] Camera capture triggered for visitId=%lu\n", visitId);
-      if (_camera != nullptr) {
-        _camera->capture(*this, visitId);
-      } else {
-        Serial.println("[MQTT] Camera not registered — skipping capture.");
+      if (msg == "START_VIDEO") {
+        Serial.println("[MQTT] Starting video stream...");
+        if (_camera != nullptr) _camera->startStream();
+      } else if (msg == "STOP_VIDEO") {
+        Serial.println("[MQTT] Stopping video stream...");
+        if (_camera != nullptr) _camera->stopStream();
       }
     }
   }

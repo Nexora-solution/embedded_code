@@ -10,7 +10,10 @@
 #include "src/mqtt/MqttGateway.h"
 #include "src/sensors/PresenceSensor.h"
 #include "src/sensors/DoorSensor.h"
+#include "src/sensors/VibrationSensor.h"
+#include "src/audio/AudioSystem.h"
 #include "src/audio/AudioCapture.h"
+#include "src/audio/AudioPlayback.h"
 #include "src/camera/CameraCapture.h"
 
 // Instantiate modules
@@ -18,12 +21,20 @@ WifiManager    wifiManager;
 MqttGateway    mqttGateway;
 PresenceSensor presenceSensor;
 DoorSensor     doorSensor;
+VibrationSensor vibrationSensor;
 AudioCapture   audioCapture;
+AudioPlayback  audioPlayback;
 CameraCapture  cameraCapture;
+
+// Handle for the camera task
+TaskHandle_t TareaCamaraHandle;
 
 void setup() {
   Serial.begin(115200);
  
+  // SECUESTRO TEMPRANO: Inicializar audio para silenciar estática al instante
+  AudioSystem::inicializarAudioSilencioso();
+
   delay(2500);
    while (!Serial) {
     delay(10); 
@@ -34,11 +45,32 @@ void setup() {
   mqttGateway.begin();
   presenceSensor.begin();
   doorSensor.begin();         // attaches interrupt internally
+  vibrationSensor.begin();
   audioCapture.begin();
-  cameraCapture.begin();      // initialise OV2640
+  audioPlayback.begin();
+  
+  // Initialize camera and pass MQTT reference
+  cameraCapture.begin();
+  cameraCapture.setMqttGateway(&mqttGateway);
+  
   mqttGateway.setCamera(&cameraCapture); // register for capture trigger
+  mqttGateway.setAudioPlayback(&audioPlayback); // register for audio playback
 
-  Serial.println("[NexBell] Boot complete.");
+  Serial.println("🚀 [Sistema] Lanzando el Mundo 2 (Video Stream) en Core 0...");
+
+  // LA SEPARACIÓN DE NÚCLEOS (Magia FreeRTOS)
+  xTaskCreatePinnedToCore(
+    CameraCapture::taskCore0,    // La función que contiene la tarea
+    "Servidor_Video",            // Nombre de la tarea (para debug)
+    10000,                       // Tamaño de la pila (Stack en bytes)
+    &cameraCapture,              // Parámetros a pasar a la tarea
+    1,                           // Prioridad
+    &TareaCamaraHandle,          // Puntero para rastrear la tarea
+    0                            // ¡Anclado al Core 0!
+  );
+
+  Serial.print("📡 [Sistema] Setup terminado. Loop principal corriendo en el Core: ");
+  Serial.println(xPortGetCoreID()); 
 }
 
 void loop() {
@@ -47,7 +79,8 @@ void loop() {
 
   presenceSensor.poll(mqttGateway);  // HC-SR04 distance poll
   doorSensor.poll(mqttGateway);      // MC38 interrupt drain and publish
+  vibrationSensor.poll(mqttGateway); // Vibration sensor polling
   audioCapture.poll(mqttGateway);    // flush audio chunks when a visit is active
 
-  delay(50);
+  vTaskDelay(pdMS_TO_TICKS(50));
 }

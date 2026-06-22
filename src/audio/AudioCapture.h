@@ -25,32 +25,8 @@
 class AudioCapture {
 public:
   void begin() {
-    i2s_config_t cfg = {
-      .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-      .sample_rate          = I2S_SAMPLE_RATE,
-      .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-      .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-      .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count        = 4,
-      .dma_buf_len          = I2S_BUFFER_LEN,
-      .use_apll             = false,
-      .tx_desc_auto_clear   = false,
-      .fixed_mclk           = 0,
-    };
-
-    i2s_pin_config_t pins = {
-      .mck_io_num   = I2S_PIN_NO_CHANGE,
-      .bck_io_num   = I2S_SCK_PIN,
-      .ws_io_num    = I2S_WS_PIN,
-      .data_out_num = I2S_PIN_NO_CHANGE,
-      .data_in_num  = I2S_SD_PIN,
-    };
-
-    i2s_driver_install(I2S_PORT, &cfg, 0, NULL);
-    i2s_set_pin(I2S_PORT, &pins);
-    i2s_zero_dma_buffer(I2S_PORT);
-    Serial.println("[INMP441] I2S driver installed.");
+    // La inicialización del hardware ya fue hecha por AudioSystem en modo Full-Duplex
+    Serial.println("[INMP441] AudioCapture listo (usando I2S compartido).");
   }
 
   /**
