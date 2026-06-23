@@ -22,21 +22,51 @@ public:
     _lastPoll = now;
 
     float distance = _measureCm();
-    bool detected  = (distance > 0 && distance < PRESENCE_THRESHOLD_CM);
+    // A timeout/no-echo reading (-1) can mean two different things: an
+    // object too close for the sensor's minimum range (~2cm), OR genuinely
+    // nothing in range to reflect the ping. We can't tell which from a
+    // single reading, so we don't special-case it here — it's treated as
+    // "not detected" like any out-of-threshold distance, and the debounce
+    // below absorbs brief, noisy timeouts without flipping the state.
+    bool detected = (distance > 0 && distance < PRESENCE_THRESHOLD_CM);
 
-    // Only publish on state change to avoid flooding the broker.
-    if (detected != _lastDetected) {
-      _lastDetected = detected;
+    // Debounce: require 4 consecutive readings agreeing on the new state
+    // (~2s at the current poll rate) before flipping. This is long enough
+    // to ignore a stray timeout while a hand is held close, but short
+    // enough to still react promptly to a real arrival/departure.
+    if (detected == _pendingDetected) {
+      if (_pendingCount < 255) _pendingCount++;
+    } else {
+      _pendingDetected = detected;
+      _pendingCount = 1;
+    }
+
+    bool stateChanged = (_pendingCount >= 2 && detected != _lastDetected);
+
+    // Heartbeat: while presence stays detected without changing, the firmware
+    // would otherwise go quiet — but the Edge service has a 20s safety
+    // timeout that auto-stops the stream if it doesn't hear from us. Re-send
+    // "1" periodically so a hand held steady never triggers a false stop.
+    bool heartbeatDue = (detected && _lastDetected &&
+                          (now - _lastPublishAt >= PRESENCE_HEARTBEAT_MS));
+
+    if (stateChanged || heartbeatDue) {
+      _lastDetected  = detected;
+      _lastPublishAt = now;
       const char* payload = detected ? "1" : "0";
       mqtt.publish(TOPIC_PRESENCE, payload);
-      Serial.printf("[HC-SR04] Presence %s (%.1f cm)\n",
-                    detected ? "DETECTED" : "CLEAR", distance);
+      Serial.printf("[HC-SR04] Presence %s (%.1f cm)%s\n",
+                    detected ? "DETECTED" : "CLEAR", distance,
+                    (!stateChanged && heartbeatDue) ? " [heartbeat]" : "");
     }
   }
 
 private:
-  unsigned long _lastPoll    = 0;
+  unsigned long _lastPoll      = 0;
+  unsigned long _lastPublishAt = 0;
   bool          _lastDetected = false;
+  bool          _pendingDetected = false;
+  uint8_t       _pendingCount    = 0;
 
   float _measureCm() {
     // Send 10µs trigger pulse

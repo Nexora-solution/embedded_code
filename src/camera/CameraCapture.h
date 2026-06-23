@@ -31,6 +31,8 @@ private:
   bool _ready = false;
   bool _streaming = false;
   MqttGateway* _mqtt = nullptr;
+  unsigned int  _droppedFrames = 0;
+  unsigned long _lastDropLog   = 0;
 
   void loop();
 };
