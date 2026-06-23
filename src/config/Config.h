@@ -7,7 +7,8 @@
 
 // ── MQTT broker ──────────────────────────────────────────────────
 #define MQTT_BROKER_PORT   1883
-#define MQTT_CLIENT_ID     "nexbell-esp32s3-door"
+#define MQTT_CLIENT_ID       "nexbell-esp32s3-door"        // main connection: commands, audio, sensors (Core 1)
+#define MQTT_VIDEO_CLIENT_ID "nexbell-esp32s3-door-video"  // dedicated connection: video only (Core 0) — must differ, or the broker disconnects whichever connected first
 
 // ── MQTT topics ──────────────────────────────────────────────────
 #define TOPIC_PRESENCE      "nexbell/telemetry/presence"
@@ -16,6 +17,8 @@
 #define TOPIC_BELL_BUTTON   "nexbell/alarms/bell" // Tópico del timbre
 #define TOPIC_VIBRATION_ALARM "nexbell/alarms/vibration" // Tópico de sensor de vibración
 #define TOPIC_AUDIO_PLAYBACK "nexbell/audio/playback"
+#define TOPIC_AUDIO_START    "nexbell/audio/start"    // payload "START"/"STOP" — live mic streaming toggle
+#define TOPIC_AUDIO_CHUNK    "nexbell/audio/chunk"    // raw PCM bytes streamed live (no Base64/JSON)
 #define TOPIC_CAMERA_TRIGGER "nexbell/commands/capture"
 
 // ── HC-SR04 (Ultrasonic / Presence) ──────────────────────────────
