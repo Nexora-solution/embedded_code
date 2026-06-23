@@ -62,7 +62,7 @@ private:
     int attempts = 0;
     while (!_client.connected() && attempts < 3) {
       Serial.printf("[MQTT] Connecting to %s:%d ...\n", MQTT_BROKER_HOST, MQTT_BROKER_PORT);
-      if (_client.connect(MQTT_CLIENT_ID)) {
+      if (_client.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD)) {
         Serial.println("[MQTT] Connected.");
         _client.subscribe(TOPIC_UNLOCK_CMD);
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_UNLOCK_CMD);

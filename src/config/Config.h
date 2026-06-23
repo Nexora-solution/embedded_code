@@ -1,11 +1,11 @@
 #pragma once
 
-// ── Wi-Fi credentials ────────────────────────────────────────────
-#define WIFI_SSID      "*SSUAREZ*2.4G"
-#define WIFI_PASSWORD  "@d2r9s3@"
+// Credenciales reales (WiFi + MQTT) viven en Secrets.h, que NO se sube al
+// repositorio. Si este archivo no existe, copia Secrets.example.h como
+// Secrets.h y completa tus valores antes de compilar.
+#include "Secrets.h"
 
 // ── MQTT broker ──────────────────────────────────────────────────
-#define MQTT_BROKER_HOST   "192.168.18.4"    // IP of Mosquitto broker (Ethernet)
 #define MQTT_BROKER_PORT   1883
 #define MQTT_CLIENT_ID     "nexbell-esp32s3-door"
 
