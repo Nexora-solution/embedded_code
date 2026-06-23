@@ -74,10 +74,20 @@ void CameraCapture::loop() {
 
   // Publish RAW JPEG Bytes to MQTT
   bool ok = _mqtt->publishBytes(TOPIC_CAMERA_VIDEO, fb->buf, fb->len);
-  
+  size_t frameLen = fb->len;
+
   esp_camera_fb_return(fb);
 
   if (!ok) {
-    Serial.println("[OV2640] Failed to publish video frame over MQTT.");
+    // Rate-limited: avoid flooding Serial (and corrupting output shared with Core 1 logs)
+    // on every dropped frame — just report once per second how many were lost.
+    _droppedFrames++;
+    unsigned long now = millis();
+    if (now - _lastDropLog >= 1000) {
+      Serial.printf("[OV2640] Dropped %u frame(s) in the last second (last size: %u bytes, buffer limit reached?)\n",
+                    _droppedFrames, (unsigned)frameLen);
+      _droppedFrames = 0;
+      _lastDropLog = now;
+    }
   }
 }

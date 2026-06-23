@@ -21,8 +21,9 @@
 // ── HC-SR04 (Ultrasonic / Presence) ──────────────────────────────
 #define HC_TRIG_PIN         39
 #define HC_ECHO_PIN         40
-#define PRESENCE_THRESHOLD_CM  80    // detect if object within 80 cm
+#define PRESENCE_THRESHOLD_CM  30    // detect if object within 30 cm — tighter range avoids picking up static background objects (desk, wall) as "presence"
 #define PRESENCE_POLL_MS      500    // poll every 500 ms
+#define PRESENCE_HEARTBEAT_MS 8000   // re-publish "1" every 8s while presence persists (refreshes the Edge's 20s safety timeout)
 
 // ── SENSORES DE SEGURIDAD FÍSICA ─────────────────────────────────
 #define MC38_PIN            41       // GPIO connected to MC38 output (Puerta)

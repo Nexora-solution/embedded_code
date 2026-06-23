@@ -1,6 +1,8 @@
 #pragma once
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "../config/Config.h"
 #include "../camera/CameraCapture.h"
 #include "../audio/AudioPlayback.h"
@@ -11,16 +13,24 @@
  * Processes inbound UNLOCK commands and drives the door relay signal
  * (relay/actuator code is excluded per spec – the handler is stubbed for
  * future hardware integration).
+ *
+ * PubSubClient/WiFiClient are NOT thread-safe. The video stream task runs
+ * pinned to Core 0 and calls publishBytes() concurrently with the main
+ * loop() on Core 1 calling maintain(). A mutex serializes all access to
+ * the underlying client so the two cores never touch the socket at the
+ * same time (this was causing TCP write failures and reconnect loops
+ * while the camera stream stayed on for more than a few seconds).
  */
 class MqttGateway {
 public:
   void begin() {
+    _mutex = xSemaphoreCreateMutex();
     _client.setClient(_wifiClient);
     _client.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
     _client.setCallback([this](char* topic, byte* payload, unsigned int length) {
       _onMessage(topic, payload, length);
     });
-    _client.setBufferSize(32768); // Aumentado a 32KB para soportar fotos Base64 de la cámara
+    _client.setBufferSize(65000); // ~64KB (máximo soportado por PubSubClient es 65535) — los frames JPEG pueden superar 32KB con escenas detalladas
     _reconnect();
   }
 
@@ -30,24 +40,30 @@ public:
   /** Call after begin() to register the audio playback module. */
   void setAudioPlayback(AudioPlayback* ap) { _audioPlayback = ap; }
 
-  /** Keep connection alive, process inbound messages. */
+  /** Keep connection alive, process inbound messages. Called from the main loop (Core 1). */
   void maintain() {
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return; // camera task is mid-publish, retry next cycle
     if (!_client.connected()) {
       _reconnect();
     }
     _client.loop();
+    xSemaphoreGive(_mutex);
   }
 
   /** Publish a string payload to a topic. */
   bool publish(const char* topic, const char* payload) {
-    if (!_client.connected()) return false;
-    return _client.publish(topic, payload);
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(200)) != pdTRUE) return false;
+    bool ok = _client.connected() && _client.publish(topic, payload);
+    xSemaphoreGive(_mutex);
+    return ok;
   }
 
-  /** Publish raw binary bytes (for audio chunks). */
+  /** Publish raw binary bytes (for video frames / audio chunks). Called from the camera task (Core 0). */
   bool publishBytes(const char* topic, const uint8_t* data, size_t len) {
-    if (!_client.connected()) return false;
-    return _client.publish(topic, data, len);
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(200)) != pdTRUE) return false;
+    bool ok = _client.connected() && _client.publish(topic, data, len);
+    xSemaphoreGive(_mutex);
+    return ok;
   }
 
   bool isConnected() { return _client.connected(); }
@@ -57,6 +73,7 @@ private:
   PubSubClient  _client;
   CameraCapture* _camera = nullptr;
   AudioPlayback* _audioPlayback = nullptr;
+  SemaphoreHandle_t _mutex = nullptr;
 
   void _reconnect() {
     int attempts = 0;
