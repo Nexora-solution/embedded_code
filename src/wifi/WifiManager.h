@@ -10,6 +10,13 @@ public:
     _ssid     = ssid;
     _password = password;
     WiFi.mode(WIFI_STA);
+    // ESP32 WiFi power-save (modem sleep) periodically puts the radio to
+    // sleep between beacon intervals to save power. Under the constant
+    // high-throughput traffic this device now produces (camera + live
+    // audio), that's a well-known cause of routers/APs deauthenticating
+    // the device with reason "AUTH_EXPIRE" — which looked like random
+    // WiFi drops cascading into MQTT reconnects and lost commands.
+    WiFi.setSleep(false);
     _connect();
   }
 
@@ -35,6 +42,7 @@ private:
   void _connect() {
     WiFi.disconnect(true);
     WiFi.begin(_ssid, _password);
+    WiFi.setSleep(false); // re-assert after each (re)connect — some core versions reset this
     Serial.print("[WiFi] Connecting");
     // Block only at startup (setup()), not in maintain().
     unsigned long start = millis();

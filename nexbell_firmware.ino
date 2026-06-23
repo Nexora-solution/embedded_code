@@ -15,10 +15,12 @@
 #include "src/audio/AudioCapture.h"
 #include "src/audio/AudioPlayback.h"
 #include "src/camera/CameraCapture.h"
+#include "src/camera/VideoMqttClient.h"
 
 // Instantiate modules
 WifiManager    wifiManager;
-MqttGateway    mqttGateway;
+MqttGateway    mqttGateway;       // commands, audio, sensors (Core 1)
+VideoMqttClient videoMqttClient;  // dedicated connection for video only (Core 0)
 PresenceSensor presenceSensor;
 DoorSensor     doorSensor;
 VibrationSensor vibrationSensor;
@@ -49,12 +51,15 @@ void setup() {
   audioCapture.begin();
   audioPlayback.begin();
   
-  // Initialize camera and pass MQTT reference
+  // Initialize the dedicated video connection and the camera
+  videoMqttClient.begin();
   cameraCapture.begin();
-  cameraCapture.setMqttGateway(&mqttGateway);
-  
+  cameraCapture.setVideoClient(&videoMqttClient);
+
+
   mqttGateway.setCamera(&cameraCapture); // register for capture trigger
   mqttGateway.setAudioPlayback(&audioPlayback); // register for audio playback
+  mqttGateway.setAudioCapture(&audioCapture); // register for live mic start/stop
 
   Serial.println("🚀 [Sistema] Lanzando el Mundo 2 (Video Stream) en Core 0...");
 

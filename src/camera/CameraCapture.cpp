@@ -1,5 +1,5 @@
 #include "CameraCapture.h"
-#include "../mqtt/MqttGateway.h"
+#include "VideoMqttClient.h"
 
 void CameraCapture::begin() {
   camera_config_t config;
@@ -56,12 +56,18 @@ void CameraCapture::taskCore0(void *parameter) {
 
   for(;;) {
     instance->loop();
-    // Allow RTOS scheduler to breathe
-    vTaskDelay(pdMS_TO_TICKS(50)); // Cap at ~20 FPS max (50ms)
+    // Video now has its own dedicated MQTT connection (VideoMqttClient),
+    // completely independent from the one used for audio/commands/sensors
+    // — so it no longer needs to slow down while audio is streaming.
+    vTaskDelay(pdMS_TO_TICKS(50)); // Cap at ~20 FPS max
   }
 }
 
 void CameraCapture::loop() {
+  // Keep the dedicated video connection alive (reconnect if dropped, send
+  // keepalive pings) on every iteration, regardless of streaming state.
+  if (_mqtt) _mqtt->maintain();
+
   if (!_ready || !_streaming || !_mqtt || !_mqtt->isConnected()) {
     return;
   }
@@ -84,7 +90,7 @@ void CameraCapture::loop() {
     _droppedFrames++;
     unsigned long now = millis();
     if (now - _lastDropLog >= 1000) {
-      Serial.printf("[OV2640] Dropped %u frame(s) in the last second (last size: %u bytes, buffer limit reached?)\n",
+      Serial.printf("[OV2640] Dropped %u frame(s) in the last second (last size: %u bytes — MQTT/WiFi congestion, not a buffer size issue)\n",
                     _droppedFrames, (unsigned)frameLen);
       _droppedFrames = 0;
       _lastDropLog = now;
