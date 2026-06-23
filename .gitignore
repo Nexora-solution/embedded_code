@@ -3,3 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Credenciales reales de WiFi/MQTT (ver Secrets.example.h para la plantilla)
+src/config/Secrets.h
