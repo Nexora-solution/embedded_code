@@ -32,6 +32,9 @@ public:
     // está saturado. Con un timeout corto, si no hay espacio a tiempo
     // simplemente se descarta este fragmento y seguimos — preferible perder
     // un trozo de audio que congelar todo el sistema.
+    // Timeout de 30 ms: damos tiempo a que el buffer del altavoz acepte el
+    // fragmento en vez de descartarlo. Priorizamos fluidez (sin cortes) sobre
+    // latencia mínima.
     esp_err_t err = i2s_write(I2S_PORT, payload, longitud, &bytes_escritos, pdMS_TO_TICKS(30));
 
     if (err != ESP_OK) {
@@ -40,5 +43,23 @@ public:
       Serial.printf("[AudioPlayback] Buffer lleno — se descartaron %u de %u bytes.\n",
                     (unsigned)(longitud - bytes_escritos), (unsigned)longitud);
     }
+
+    // Diagnóstico (1 vez/seg): confirma si el ESP32 está RECIBIENDO y
+    // reproduciendo el audio de la PC. Si ves "> 0 bytes/s" aquí mientras
+    // hablas a tu micrófono de la PC, el audio SÍ llega al parlante (sería
+    // solo cuestión de volumen). Si ves "0 bytes/s", el audio no está
+    // llegando: el problema está en la web o el edge, no en el parlante.
+    _bytesPlayedThisSecond += bytes_escritos;
+    unsigned long now = millis();
+    if (now - _lastPlayLog >= 1000) {
+      Serial.printf("[AudioPlayback] Reproduccion: %u bytes/s recibidos de la PC.\n",
+                    (unsigned)_bytesPlayedThisSecond);
+      _bytesPlayedThisSecond = 0;
+      _lastPlayLog = now;
+    }
   }
+
+private:
+  unsigned long _bytesPlayedThisSecond = 0;
+  unsigned long _lastPlayLog           = 0;
 };

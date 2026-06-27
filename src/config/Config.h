@@ -27,6 +27,8 @@
 #define PRESENCE_THRESHOLD_CM  30    // detect if object within 30 cm — tighter range avoids picking up static background objects (desk, wall) as "presence"
 #define PRESENCE_POLL_MS      500    // poll every 500 ms
 #define PRESENCE_HEARTBEAT_MS 8000   // re-publish "1" every 8s while presence persists (refreshes the Edge's 20s safety timeout)
+#define PRESENCE_ON_READINGS  2       // lecturas seguidas para PRENDER presencia (~1s) — reacción rápida
+#define PRESENCE_OFF_READINGS 6       // lecturas seguidas para APAGAR presencia (~3s) — evita cortes por baches
 
 // ── SENSORES DE SEGURIDAD FÍSICA ─────────────────────────────────
 #define MC38_PIN            41       // GPIO connected to MC38 output (Puerta)
@@ -53,6 +55,11 @@
 #define I2S_BUFFER_LEN      512      // samples per DMA block
 #define AUDIO_CHUNK_SIZE    1024     // bytes per MQTT chunk
 #define AUDIO_RECORD_SECONDS  5
+// Máximo de bloques de audio a publicar por cada vuelta del loop principal.
+// El loop corre ~cada 50 ms pero a 16 kHz se generan ~800 muestras en ese
+// tiempo (más de un bloque). Drenamos varios bloques por ciclo para no
+// quedarnos atrás del micrófono y evitar huecos en el audio IoT→PC.
+#define AUDIO_MAX_BLOCKS_PER_POLL 6
 
 // ── OV2640 Camera pin mapping ────────────────────────────────────
 // Adjust these GPIO numbers to match your actual wiring.

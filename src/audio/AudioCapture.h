@@ -37,6 +37,8 @@ public:
   void poll(MqttGateway& mqtt);
 
 private:
-  bool    _streaming = false;
-  uint8_t _rawBuf[I2S_BUFFER_LEN * 2]; // 16-bit samples
+  bool          _streaming = false;
+  uint8_t       _rawBuf[I2S_BUFFER_LEN * 2]; // 16-bit samples
+  unsigned long _bytesThisSecond = 0;        // diagnóstico: bytes publicados en el último segundo
+  unsigned long _lastStatLog     = 0;        // marca de tiempo del último log de diagnóstico
 };

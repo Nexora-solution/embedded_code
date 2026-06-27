@@ -87,5 +87,10 @@ void loop() {
   vibrationSensor.poll(mqttGateway); // Vibration sensor polling
   audioCapture.poll(mqttGateway);    // flush audio chunks when a visit is active
 
-  vTaskDelay(pdMS_TO_TICKS(50));
+  // 5 ms en vez de 50 ms: el audio en vivo necesita que MQTT se procese
+  // rápido en ambos sentidos. Con 50 ms, _client.loop() corría solo ~20
+  // veces/seg y no alcanzaba a drenar el audio entrante de la PC (se perdía
+  // ~99%) ni a publicar el micrófono a tiempo. A 5 ms procesa ~200 veces/seg.
+  // Los sensores tienen su propio intervalo interno, así que no se afectan.
+  vTaskDelay(pdMS_TO_TICKS(5));
 }
