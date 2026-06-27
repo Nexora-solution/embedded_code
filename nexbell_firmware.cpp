@@ -3,7 +3,13 @@
  * Main entry point - initialises all hardware modules and the MQTT gateway.
  * Board: ESP32S3
  * Framework: Arduino
+ *
+ * Nota: archivo .cpp (no .ino) — el core 2.0.x de Arduino (necesario para la
+ * IA de reconocimiento facial ESP-DL) no convierte bien un .ino en la raíz con
+ * `src_dir = .`. Como .cpp se compila directo, sin el paso de conversión.
  */
+
+#include <Arduino.h>
 
 #include "src/config/Config.h"
 #include "src/wifi/WifiManager.h"
@@ -17,6 +23,7 @@
 #include "src/audio/AudioUdpTransport.h"
 #include "src/camera/CameraCapture.h"
 #include "src/camera/VideoTcpClient.h"
+#include "src/camera/FaceAI.h"
 
 // Instantiate modules
 WifiManager    wifiManager;
@@ -29,22 +36,25 @@ AudioCapture   audioCapture;
 AudioPlayback  audioPlayback;
 AudioUdpTransport audioUdp;       // live voice over UDP, direct to the Edge (not MQTT)
 CameraCapture  cameraCapture;
+FaceAI         faceRecognizer;    // on-device face detection/recognition (Core 0)
 
 // Buffer for incoming portero audio arriving over UDP.
 static uint8_t udpPlaybackBuf[2048];
+// Buffer for outgoing face-recognition events (published from the main loop).
+static char faceEventBuf[160];
 
 // Handle for the camera task
 TaskHandle_t TareaCamaraHandle;
 
 void setup() {
   Serial.begin(115200);
- 
+
   // SECUESTRO TEMPRANO: Inicializar audio para silenciar estática al instante
   AudioSystem::inicializarAudioSilencioso();
 
   delay(2500);
    while (!Serial) {
-    delay(10); 
+    delay(10);
   }
   Serial.println("[NexBell] Booting...");
 
@@ -59,9 +69,11 @@ void setup() {
 
   // Initialize the dedicated video TCP socket and the camera
   videoTcpClient.begin();
+  faceRecognizer.begin();
   cameraCapture.begin();
   cameraCapture.setVideoClient(&videoTcpClient);
   cameraCapture.setAudioMonitor(&audioCapture); // baja FPS del video cuando hay audio
+  cameraCapture.setFaceRecognizer(&faceRecognizer); // IA de cara cada N frames
 
 
   mqttGateway.setCamera(&cameraCapture); // register for capture trigger
@@ -73,7 +85,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     CameraCapture::taskCore0,    // La función que contiene la tarea
     "Servidor_Video",            // Nombre de la tarea (para debug)
-    10000,                       // Tamaño de la pila (Stack en bytes)
+    32768,                       // Stack de 32 KB — la inferencia de la IA (ESP-DL) lo necesita
     &cameraCapture,              // Parámetros a pasar a la tarea
     1,                           // Prioridad
     &TareaCamaraHandle,          // Puntero para rastrear la tarea
@@ -81,7 +93,7 @@ void setup() {
   );
 
   Serial.print("📡 [Sistema] Setup terminado. Loop principal corriendo en el Core: ");
-  Serial.println(xPortGetCoreID()); 
+  Serial.println(xPortGetCoreID());
 }
 
 void loop() {
@@ -98,6 +110,12 @@ void loop() {
   int n;
   while ((n = audioUdp.receivePlayback(udpPlaybackBuf, sizeof(udpPlaybackBuf))) > 0) {
     audioPlayback.reproducir(udpPlaybackBuf, (size_t)n);
+  }
+
+  // Publica los eventos de reconocimiento facial que la IA (Core 0) dejó en la
+  // cola. Se hace aquí (Core 1) porque MQTT no es thread-safe entre núcleos.
+  while (faceRecognizer.takeEvent(faceEventBuf, sizeof(faceEventBuf))) {
+    mqttGateway.publish(TOPIC_CAMERA_FACE, faceEventBuf);
   }
 
   // 5 ms de loop: mantiene el procesamiento de MQTT (comandos/control) ágil y

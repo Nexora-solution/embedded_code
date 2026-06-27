@@ -1,6 +1,11 @@
 #include "CameraCapture.h"
 #include "VideoTcpClient.h"
+#include "FaceAI.h"
 #include "../audio/AudioCapture.h"
+
+// Registrar implica encender la IA (si no, no habría con qué capturar la cara).
+void CameraCapture::enrollFace()  { _faceActive = true; if (_face) _face->enrollNext(); }
+void CameraCapture::deleteFaces() { if (_face) _face->deleteAll(); }
 
 void CameraCapture::begin() {
   camera_config_t config;
@@ -74,6 +79,11 @@ void CameraCapture::loop() {
   // keepalive pings) on every iteration, regardless of streaming state.
   if (_mqtt) _mqtt->maintain();
 
+  // La cámara transmite SOLO con presencia (_streaming). Al quitar la presencia
+  // se apaga. El reconocimiento facial igual funciona: la persona a registrar o
+  // reconocer ya está frente a la cámara, así que la presencia ya está activa.
+  // (La IA solo corre cuando además el reconocimiento está ON — ver el bloque
+  //  FACE_DETECT más abajo, que comprueba _faceActive.)
   if (!_ready || !_streaming || !_mqtt || !_mqtt->isConnected()) {
     return;
   }
@@ -87,6 +97,16 @@ void CameraCapture::loop() {
   // Publish RAW JPEG Bytes to MQTT
   bool ok = _mqtt->publishBytes(TOPIC_CAMERA_VIDEO, fb->buf, fb->len);
   size_t frameLen = fb->len;
+
+#if FACE_DETECT_ENABLED
+  // Correr la IA SOLO si está activada (al trabajar con residentes). En el flujo
+  // normal de visitantes queda apagada → el video va a su fluidez completa.
+  // Corre 1 de cada N frames, después de enviar el frame y antes de liberar fb.
+  _frameCount++;
+  if (_faceActive && _face && (_frameCount % FACE_DETECT_EVERY_N_FRAMES == 0)) {
+    _face->process(fb);
+  }
+#endif
 
   esp_camera_fb_return(fb);
 

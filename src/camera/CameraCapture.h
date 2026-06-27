@@ -5,6 +5,7 @@
 
 class VideoTcpClient;
 class AudioCapture;
+class FaceAI;
 
 #define TOPIC_CAMERA_VIDEO "nexbell/telemetry/video"
 
@@ -34,13 +35,29 @@ public:
   // frame rate and leave WiFi bandwidth for the audio (keeps video alive).
   void setAudioMonitor(AudioCapture* audio) { _audio = audio; }
 
+  // Register the on-device face recognizer (runs every N frames on this task).
+  void setFaceRecognizer(FaceAI* face) { _face = face; }
+
+  // Enables/disables the face AI. OFF by default: the normal visitor flow runs
+  // at full video fluidity. Only turned ON when working with residents
+  // (registering or recognizing) — then video drops FPS while it's active.
+  void setFaceActive(bool on) { _faceActive = on; }
+  bool isFaceActive() const { return _faceActive; }
+
+  // Forwarded from the MQTT command handler (Core 1): enroll/clear faces.
+  void enrollFace();
+  void deleteFaces();
+
 private:
   bool _ready = false;
   bool _streaming = false;
   VideoTcpClient* _mqtt = nullptr;
   AudioCapture*   _audio = nullptr;
+  FaceAI* _face = nullptr;
+  volatile bool _faceActive = false; // IA apagada por defecto (flujo normal fluido)
   unsigned int  _droppedFrames = 0;
   unsigned long _lastDropLog   = 0;
+  uint32_t      _frameCount    = 0;
 
   void loop();
 };
