@@ -16,12 +16,12 @@
 #include "src/audio/AudioPlayback.h"
 #include "src/audio/AudioUdpTransport.h"
 #include "src/camera/CameraCapture.h"
-#include "src/camera/VideoMqttClient.h"
+#include "src/camera/VideoTcpClient.h"
 
 // Instantiate modules
 WifiManager    wifiManager;
 MqttGateway    mqttGateway;       // commands, sensors, mic START/STOP control (Core 1)
-VideoMqttClient videoMqttClient;  // dedicated connection for video only (Core 0)
+VideoTcpClient videoTcpClient;    // dedicated TCP socket for video only, direct to Edge (Core 0)
 PresenceSensor presenceSensor;
 DoorSensor     doorSensor;
 VibrationSensor vibrationSensor;
@@ -57,10 +57,11 @@ void setup() {
   audioPlayback.begin();
   audioUdp.begin();           // open the UDP socket for live voice (mic out / portero in)
 
-  // Initialize the dedicated video connection and the camera
-  videoMqttClient.begin();
+  // Initialize the dedicated video TCP socket and the camera
+  videoTcpClient.begin();
   cameraCapture.begin();
-  cameraCapture.setVideoClient(&videoMqttClient);
+  cameraCapture.setVideoClient(&videoTcpClient);
+  cameraCapture.setAudioMonitor(&audioCapture); // baja FPS del video cuando hay audio
 
 
   mqttGateway.setCamera(&cameraCapture); // register for capture trigger

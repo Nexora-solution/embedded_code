@@ -25,10 +25,10 @@
 #define HC_TRIG_PIN         39
 #define HC_ECHO_PIN         40
 #define PRESENCE_THRESHOLD_CM  30    // detect if object within 30 cm — tighter range avoids picking up static background objects (desk, wall) as "presence"
-#define PRESENCE_POLL_MS      500    // poll every 500 ms
+#define PRESENCE_POLL_MS      250    // poll every 250 ms — responde más rápido a la presencia
 #define PRESENCE_HEARTBEAT_MS 8000   // re-publish "1" every 8s while presence persists (refreshes the Edge's 20s safety timeout)
-#define PRESENCE_ON_READINGS  2       // lecturas seguidas para PRENDER presencia (~1s) — reacción rápida
-#define PRESENCE_OFF_READINGS 6       // lecturas seguidas para APAGAR presencia (~3s) — evita cortes por baches
+#define PRESENCE_ON_READINGS  2       // lecturas para PRENDER (~0.5s a 250ms) — reacción rápida
+#define PRESENCE_OFF_READINGS 6       // lecturas para APAGAR (~1.5s a 250ms) — se apaga más rápido al irse
 
 // ── SENSORES DE SEGURIDAD FÍSICA ─────────────────────────────────
 #define MC38_PIN            41       // GPIO connected to MC38 output (Puerta)
@@ -58,6 +58,14 @@
 #define EDGE_AUDIO_HOST     MQTT_BROKER_HOST  // el Edge corre en la misma PC que el broker
 #define EDGE_AUDIO_PORT     3101              // puerto donde el Edge escucha el mic del ESP32
 #define ESP32_AUDIO_PORT    3102              // puerto donde el ESP32 escucha el audio del portero
+
+// ── Video en vivo por TCP (fuera de MQTT) ────────────────────────
+// El video tampoco viaja ya por el broker MQTT: cada frame JPEG se manda por
+// un socket TCP directo al Edge. TCP maneja frames grandes (5-15KB) sin
+// partirlos ni perder imagen, y al salir del broker libera carga para que el
+// video no se "muera" mientras el audio funciona.
+#define EDGE_VIDEO_HOST     MQTT_BROKER_HOST  // misma PC que el Edge/broker
+#define EDGE_VIDEO_PORT     3103              // puerto TCP donde el Edge recibe los frames de video
 
 // ── Audio capture window ─────────────────────────────────────────
 #define I2S_SAMPLE_RATE     16000

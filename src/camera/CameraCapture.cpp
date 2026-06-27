@@ -1,5 +1,6 @@
 #include "CameraCapture.h"
-#include "VideoMqttClient.h"
+#include "VideoTcpClient.h"
+#include "../audio/AudioCapture.h"
 
 void CameraCapture::begin() {
   camera_config_t config;
@@ -28,7 +29,10 @@ void CameraCapture::begin() {
 
   if (psramFound()) {
     config.frame_size   = FRAMESIZE_QVGA; // 320x240 for fluid streaming
-    config.jpeg_quality = 12;             // Good compression
+    // Calidad 16 (antes 12): comprime un poco más → frames ~40% más livianos.
+    // Con el audio compartiendo el mismo WiFi, frames más chicos dejan ancho
+    // de banda para que el audio no haga estática y el video no se congele.
+    config.jpeg_quality = 16;
     config.fb_count     = 2;              // Double buffer for fluency
     config.fb_location  = CAMERA_FB_IN_PSRAM;
   } else {
@@ -56,10 +60,12 @@ void CameraCapture::taskCore0(void *parameter) {
 
   for(;;) {
     instance->loop();
-    // Video now has its own dedicated MQTT connection (VideoMqttClient),
-    // completely independent from the one used for audio/commands/sensors
-    // — so it no longer needs to slow down while audio is streaming.
-    vTaskDelay(pdMS_TO_TICKS(50)); // Cap at ~20 FPS max
+    // FPS adaptativo: el ESP32 tiene UN solo WiFi. Si el audio en vivo está
+    // activo, bajamos a ~10 FPS (100ms) para dejarle ancho de banda y que el
+    // envío TCP del video no se quede bloqueado (eso apagaba el video al
+    // hablar). Sin audio, vamos a ~20 FPS (50ms) para máxima fluidez.
+    bool audioActive = (instance->_audio != nullptr && instance->_audio->isStreaming());
+    vTaskDelay(pdMS_TO_TICKS(audioActive ? 100 : 50));
   }
 }
 
