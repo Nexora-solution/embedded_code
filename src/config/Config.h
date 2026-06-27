@@ -20,6 +20,7 @@
 #define TOPIC_AUDIO_START    "nexbell/audio/start"    // payload "START"/"STOP" — live mic streaming toggle
 #define TOPIC_AUDIO_CHUNK    "nexbell/audio/chunk"    // raw PCM bytes streamed live (no Base64/JSON)
 #define TOPIC_CAMERA_TRIGGER "nexbell/commands/capture"
+#define TOPIC_CAMERA_FACE    "nexbell/telemetry/face"   // eventos de reconocimiento facial (JSON)
 
 // ── HC-SR04 (Ultrasonic / Presence) ──────────────────────────────
 #define HC_TRIG_PIN         39
@@ -97,3 +98,20 @@
 #define CAM_PIN_VSYNC   6
 #define CAM_PIN_HREF    7
 #define CAM_PIN_PCLK    13
+
+// ── Reconocimiento facial (ESP-DL) ───────────────────────────────
+// Solo aplica para RESIDENTES: se registra su cara con la cámara del IoT y,
+// cuando vuelve, se le reconoce y se avisa al portero (no abre nada).
+// Detección 2 etapas (MSR01 + MNP01):
+#define FD_S1_SCORE_THR    0.1F
+#define FD_S1_NMS_THR      0.5F
+#define FD_S1_TOP_K        10
+#define FD_S1_RESIZE       0.2F
+#define FD_S2_SCORE_THR    0.5F
+#define FD_S2_NMS_THR      0.3F
+#define FD_S2_TOP_K        5
+// Reconocimiento (FaceRecognition112V1S8):
+#define FR_CONFIDENCE_THR  0.63F   // similitud mínima para aceptar una coincidencia
+#define FR_MAX_ENROLLED    7       // máximo de caras guardadas en memoria del ESP32
+// Correr la IA cada N frames de video para no ahogar el streaming:
+#define FACE_DETECT_EVERY_N_FRAMES  3

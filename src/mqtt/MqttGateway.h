@@ -99,7 +99,7 @@ private:
       // digitalWrite(RELAY_PIN, HIGH); delay(3000); digitalWrite(RELAY_PIN, LOW);
     }
 
-    // Camera video streaming commands: START_VIDEO or STOP_VIDEO
+    // Camera + face commands: START_VIDEO / STOP_VIDEO / ENROLL_FACE / DELETE_FACES
     if (topicStr == TOPIC_CAMERA_TRIGGER) {
       if (msg == "START_VIDEO") {
         Serial.println("[MQTT] Starting video stream...");
@@ -107,6 +107,18 @@ private:
       } else if (msg == "STOP_VIDEO") {
         Serial.println("[MQTT] Stopping video stream...");
         if (_camera != nullptr) _camera->stopStream();
+      } else if (msg == "ENROLL_FACE") {
+        Serial.println("[MQTT] Enrolling next detected face...");
+        if (_camera != nullptr) _camera->enrollFace();
+      } else if (msg == "DELETE_FACES") {
+        Serial.println("[MQTT] Deleting all enrolled faces...");
+        if (_camera != nullptr) _camera->deleteFaces();
+      } else if (msg == "FACE_ON") {
+        Serial.println("[MQTT] Face recognition ENABLED.");
+        if (_camera != nullptr) _camera->setFaceActive(true);
+      } else if (msg == "FACE_OFF") {
+        Serial.println("[MQTT] Face recognition DISABLED.");
+        if (_camera != nullptr) _camera->setFaceActive(false);
       }
     }
 
