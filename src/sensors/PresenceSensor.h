@@ -22,18 +22,22 @@ public:
     _lastPoll = now;
 
     float distance = _measureCm();
-    // A timeout/no-echo reading (-1) can mean two different things: an
-    // object too close for the sensor's minimum range (~2cm), OR genuinely
-    // nothing in range to reflect the ping. We can't tell which from a
-    // single reading, so we don't special-case it here — it's treated as
-    // "not detected" like any out-of-threshold distance, and the debounce
-    // below absorbs brief, noisy timeouts without flipping the state.
-    bool detected = (distance > 0 && distance < PRESENCE_THRESHOLD_CM);
 
-    // Debounce: require 4 consecutive readings agreeing on the new state
-    // (~2s at the current poll rate) before flipping. This is long enough
-    // to ignore a stray timeout while a hand is held close, but short
-    // enough to still react promptly to a real arrival/departure.
+    // Un -1 (sin eco) es ambiguo: puede ser un objeto DEMASIADO CERCA (dentro
+    // de la zona muerta de ~2cm del HC-SR04) o que no haya nada. Antes esto se
+    // tomaba como "no detectado" y apagaba la cámara aunque la persona siguiera
+    // ahí (mano pegada al sensor). Ahora, ante un -1, MANTENEMOS el estado
+    // actual en vez de voltearlo — así una mano pegada no apaga el stream.
+    bool detected;
+    if (distance < 0) {
+      detected = _lastDetected;                       // sin eco → conservar estado
+    } else {
+      detected = (distance < PRESENCE_THRESHOLD_CM);  // lectura válida
+    }
+
+    // Debounce ASIMÉTRICO: rápido para PRENDER, lento para APAGAR. Encender con
+    // 2 lecturas (~1s) reacciona pronto a una llegada; apagar exige 6 lecturas
+    // (~3s) seguidas de "vacío" para no cortar la cámara por un bache momentáneo.
     if (detected == _pendingDetected) {
       if (_pendingCount < 255) _pendingCount++;
     } else {
@@ -41,7 +45,8 @@ public:
       _pendingCount = 1;
     }
 
-    bool stateChanged = (_pendingCount >= 2 && detected != _lastDetected);
+    uint8_t needed = detected ? PRESENCE_ON_READINGS : PRESENCE_OFF_READINGS;
+    bool stateChanged = (_pendingCount >= needed && detected != _lastDetected);
 
     // Heartbeat: while presence stays detected without changing, the firmware
     // would otherwise go quiet — but the Edge service has a 20s safety

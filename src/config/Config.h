@@ -25,8 +25,10 @@
 #define HC_TRIG_PIN         39
 #define HC_ECHO_PIN         40
 #define PRESENCE_THRESHOLD_CM  30    // detect if object within 30 cm — tighter range avoids picking up static background objects (desk, wall) as "presence"
-#define PRESENCE_POLL_MS      500    // poll every 500 ms
+#define PRESENCE_POLL_MS      250    // poll every 250 ms — responde más rápido a la presencia
 #define PRESENCE_HEARTBEAT_MS 8000   // re-publish "1" every 8s while presence persists (refreshes the Edge's 20s safety timeout)
+#define PRESENCE_ON_READINGS  2       // lecturas para PRENDER (~0.5s a 250ms) — reacción rápida
+#define PRESENCE_OFF_READINGS 6       // lecturas para APAGAR (~1.5s a 250ms) — se apaga más rápido al irse
 
 // ── SENSORES DE SEGURIDAD FÍSICA ─────────────────────────────────
 #define MC38_PIN            41       // GPIO connected to MC38 output (Puerta)
@@ -48,11 +50,33 @@
 #define I2S_AMP_DIN_PIN     2        // Tubería de salida de sonido
 #define I2S_PORT_AMP        I2S_NUM_1 // Puerto exclusivo de salida
 
+// ── Audio en vivo por UDP (fuera de MQTT) ────────────────────────
+// El audio de voz ya NO viaja por el broker MQTT: va por un socket UDP
+// directo entre el ESP32 y el Edge service. Esto quita el salto del broker
+// y el overhead de PubSubClient (latencia mucho menor) y libera el WiFi/MQTT
+// para el video. El control (START/STOP del micrófono) sí sigue por MQTT.
+#define EDGE_AUDIO_HOST     MQTT_BROKER_HOST  // el Edge corre en la misma PC que el broker
+#define EDGE_AUDIO_PORT     3101              // puerto donde el Edge escucha el mic del ESP32
+#define ESP32_AUDIO_PORT    3102              // puerto donde el ESP32 escucha el audio del portero
+
+// ── Video en vivo por TCP (fuera de MQTT) ────────────────────────
+// El video tampoco viaja ya por el broker MQTT: cada frame JPEG se manda por
+// un socket TCP directo al Edge. TCP maneja frames grandes (5-15KB) sin
+// partirlos ni perder imagen, y al salir del broker libera carga para que el
+// video no se "muera" mientras el audio funciona.
+#define EDGE_VIDEO_HOST     MQTT_BROKER_HOST  // misma PC que el Edge/broker
+#define EDGE_VIDEO_PORT     3103              // puerto TCP donde el Edge recibe los frames de video
+
 // ── Audio capture window ─────────────────────────────────────────
 #define I2S_SAMPLE_RATE     16000
 #define I2S_BUFFER_LEN      512      // samples per DMA block
 #define AUDIO_CHUNK_SIZE    1024     // bytes per MQTT chunk
 #define AUDIO_RECORD_SECONDS  5
+// Máximo de bloques de audio a publicar por cada vuelta del loop principal.
+// El loop corre ~cada 50 ms pero a 16 kHz se generan ~800 muestras en ese
+// tiempo (más de un bloque). Drenamos varios bloques por ciclo para no
+// quedarnos atrás del micrófono y evitar huecos en el audio IoT→PC.
+#define AUDIO_MAX_BLOCKS_PER_POLL 6
 
 // ── OV2640 Camera pin mapping ────────────────────────────────────
 // Adjust these GPIO numbers to match your actual wiring.

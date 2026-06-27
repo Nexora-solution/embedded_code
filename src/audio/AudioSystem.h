@@ -22,8 +22,12 @@ public:
       .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
+      // Buffers DMA: 8 × 256 = 2048 muestras (~128 ms a 16 kHz). Priorizamos
+      // FLUIDEZ: con buffers más chicos (64/32 ms) el audio PC→IoT se cortaba
+      // y empeoraba. Esta holgura mantiene el sonido continuo (a cambio de un
+      // poco de latencia, que es preferible a los cortes).
       .dma_buf_count        = 8,
-      .dma_buf_len          = 64,
+      .dma_buf_len          = 256,
       .use_apll             = false,
       .tx_desc_auto_clear   = true, // 🛡️ EL ESCUDO ANTI-ESTÁTICA
       .fixed_mclk           = 0,

@@ -3,7 +3,7 @@
 #include <driver/i2s.h>
 #include "../config/Config.h"
 
-class MqttGateway;
+class AudioUdpTransport;
 
 /**
  * INMP441 I2S Microphone — Live Audio Capture
@@ -33,10 +33,12 @@ public:
 
   bool isStreaming() const { return _streaming; }
 
-  /** Called from the main loop. While streaming, reads one DMA buffer and publishes it raw. */
-  void poll(MqttGateway& mqtt);
+  /** Called from the main loop. While streaming, reads the mic DMA and sends it over UDP. */
+  void poll(AudioUdpTransport& udp);
 
 private:
-  bool    _streaming = false;
-  uint8_t _rawBuf[I2S_BUFFER_LEN * 2]; // 16-bit samples
+  bool          _streaming = false;
+  uint8_t       _rawBuf[I2S_BUFFER_LEN * 2]; // 16-bit samples
+  unsigned long _bytesThisSecond = 0;        // diagnóstico: bytes publicados en el último segundo
+  unsigned long _lastStatLog     = 0;        // marca de tiempo del último log de diagnóstico
 };

@@ -3,7 +3,6 @@
 #include <WiFi.h>
 #include "../config/Config.h"
 #include "../camera/CameraCapture.h"
-#include "../audio/AudioPlayback.h"
 #include "../audio/AudioCapture.h"
 
 /**
@@ -37,10 +36,7 @@ public:
   /** Call after begin() to register the camera module for capture triggers. */
   void setCamera(CameraCapture* cam) { _camera = cam; }
 
-  /** Call after begin() to register the audio playback module. */
-  void setAudioPlayback(AudioPlayback* ap) { _audioPlayback = ap; }
-
-  /** Call after begin() to register the live mic capture module. */
+  /** Call after begin() to register the live mic capture module (START/STOP control). */
   void setAudioCapture(AudioCapture* ac) { _audioCapture = ac; }
 
   /** Keep connection alive, process inbound messages. Called from the main loop (Core 1). */
@@ -67,7 +63,6 @@ private:
   WiFiClient    _wifiClient;
   PubSubClient  _client;
   CameraCapture* _camera = nullptr;
-  AudioPlayback* _audioPlayback = nullptr;
   AudioCapture*  _audioCapture = nullptr;
 
   void _reconnect() {
@@ -80,8 +75,6 @@ private:
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_UNLOCK_CMD);
         _client.subscribe(TOPIC_CAMERA_TRIGGER);
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_CAMERA_TRIGGER);
-        _client.subscribe(TOPIC_AUDIO_PLAYBACK);
-        Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_AUDIO_PLAYBACK);
         _client.subscribe(TOPIC_AUDIO_START);
         Serial.printf("[MQTT] Subscribed to %s\n", TOPIC_AUDIO_START);
       } else {
@@ -95,14 +88,8 @@ private:
   void _onMessage(char* topic, byte* payload, unsigned int length) {
     String topicStr(topic);
 
-    // Si es audio binario, lo pasamos directo al DAC/I2S sin imprimir
-    if (topicStr == TOPIC_AUDIO_PLAYBACK) {
-      if (_audioPlayback != nullptr) {
-        _audioPlayback->reproducirAudioMQTT(payload, length);
-      }
-      return;
-    }
-
+    // El audio del portero ya NO viaja por MQTT (ahora es UDP). Aquí solo
+    // quedan mensajes de control/comandos, que son de texto.
     String msg((char*)payload, length);
     Serial.printf("[MQTT] Received [%s]: %s\n", topic, msg.c_str());
 
