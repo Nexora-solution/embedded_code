@@ -5,10 +5,11 @@
 
 /**
  * AudioPlayback
- * 
- * Se encarga de recibir fragmentos de audio (vía MQTT) e inyectarlos
- * directamente en el puerto I2S para reproducirlos por el altavoz MAX98357A.
- * Gracias a `tx_desc_auto_clear = true`, no necesita manejar el silencio manual.
+ *
+ * Recibe fragmentos de audio del portero (ahora vía UDP, llamado desde el loop
+ * principal) e inyecta el PCM directamente en el puerto I2S para reproducirlo
+ * por el altavoz MAX98357A. Gracias a `tx_desc_auto_clear = true`, no necesita
+ * manejar el silencio manual.
  */
 class AudioPlayback {
 public:
@@ -19,19 +20,12 @@ public:
   }
 
   /**
-   * Esta función se llama desde MqttGateway cuando llega un payload
-   * en el tópico TOPIC_AUDIO_PLAYBACK.
+   * Reproduce un fragmento de PCM del portero. Se llama desde el loop principal
+   * cada vez que llega un paquete de audio por UDP.
    */
-  void reproducirAudioMQTT(uint8_t* payload, size_t longitud) {
+  void reproducir(uint8_t* payload, size_t longitud) {
     size_t bytes_escritos;
 
-    // Esta llamada ocurre DENTRO del callback de MQTT, que ya tiene el mutex
-    // de la conexión tomado (ver MqttGateway::maintain()). Si esperáramos
-    // indefinidamente (portMAX_DELAY) a que el DMA tenga espacio, podríamos
-    // bloquear la cámara y el micrófono por mucho tiempo cuando el sistema
-    // está saturado. Con un timeout corto, si no hay espacio a tiempo
-    // simplemente se descarta este fragmento y seguimos — preferible perder
-    // un trozo de audio que congelar todo el sistema.
     // Timeout de 30 ms: damos tiempo a que el buffer del altavoz acepte el
     // fragmento en vez de descartarlo. Priorizamos fluidez (sin cortes) sobre
     // latencia mínima.

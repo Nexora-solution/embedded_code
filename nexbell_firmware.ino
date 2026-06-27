@@ -14,19 +14,24 @@
 #include "src/audio/AudioSystem.h"
 #include "src/audio/AudioCapture.h"
 #include "src/audio/AudioPlayback.h"
+#include "src/audio/AudioUdpTransport.h"
 #include "src/camera/CameraCapture.h"
 #include "src/camera/VideoMqttClient.h"
 
 // Instantiate modules
 WifiManager    wifiManager;
-MqttGateway    mqttGateway;       // commands, audio, sensors (Core 1)
+MqttGateway    mqttGateway;       // commands, sensors, mic START/STOP control (Core 1)
 VideoMqttClient videoMqttClient;  // dedicated connection for video only (Core 0)
 PresenceSensor presenceSensor;
 DoorSensor     doorSensor;
 VibrationSensor vibrationSensor;
 AudioCapture   audioCapture;
 AudioPlayback  audioPlayback;
+AudioUdpTransport audioUdp;       // live voice over UDP, direct to the Edge (not MQTT)
 CameraCapture  cameraCapture;
+
+// Buffer for incoming portero audio arriving over UDP.
+static uint8_t udpPlaybackBuf[2048];
 
 // Handle for the camera task
 TaskHandle_t TareaCamaraHandle;
@@ -50,7 +55,8 @@ void setup() {
   vibrationSensor.begin();
   audioCapture.begin();
   audioPlayback.begin();
-  
+  audioUdp.begin();           // open the UDP socket for live voice (mic out / portero in)
+
   // Initialize the dedicated video connection and the camera
   videoMqttClient.begin();
   cameraCapture.begin();
@@ -58,8 +64,7 @@ void setup() {
 
 
   mqttGateway.setCamera(&cameraCapture); // register for capture trigger
-  mqttGateway.setAudioPlayback(&audioPlayback); // register for audio playback
-  mqttGateway.setAudioCapture(&audioCapture); // register for live mic start/stop
+  mqttGateway.setAudioCapture(&audioCapture); // register for live mic start/stop (MQTT control)
 
   Serial.println("🚀 [Sistema] Lanzando el Mundo 2 (Video Stream) en Core 0...");
 
@@ -85,12 +90,17 @@ void loop() {
   presenceSensor.poll(mqttGateway);  // HC-SR04 distance poll
   doorSensor.poll(mqttGateway);      // MC38 interrupt drain and publish
   vibrationSensor.poll(mqttGateway); // Vibration sensor polling
-  audioCapture.poll(mqttGateway);    // flush audio chunks when a visit is active
+  audioCapture.poll(audioUdp);       // send live mic to the Edge over UDP
 
-  // 5 ms en vez de 50 ms: el audio en vivo necesita que MQTT se procese
-  // rápido en ambos sentidos. Con 50 ms, _client.loop() corría solo ~20
-  // veces/seg y no alcanzaba a drenar el audio entrante de la PC (se perdía
-  // ~99%) ni a publicar el micrófono a tiempo. A 5 ms procesa ~200 veces/seg.
-  // Los sensores tienen su propio intervalo interno, así que no se afectan.
+  // Drena el audio del portero que llega por UDP y lo reproduce. Se procesan
+  // todos los paquetes pendientes en cada vuelta para no acumular retraso.
+  int n;
+  while ((n = audioUdp.receivePlayback(udpPlaybackBuf, sizeof(udpPlaybackBuf))) > 0) {
+    audioPlayback.reproducir(udpPlaybackBuf, (size_t)n);
+  }
+
+  // 5 ms de loop: mantiene el procesamiento de MQTT (comandos/control) ágil y
+  // drena el audio UDP entrante a tiempo. Los sensores tienen su propio
+  // intervalo interno, así que no se afectan.
   vTaskDelay(pdMS_TO_TICKS(5));
 }

@@ -50,6 +50,15 @@
 #define I2S_AMP_DIN_PIN     2        // Tubería de salida de sonido
 #define I2S_PORT_AMP        I2S_NUM_1 // Puerto exclusivo de salida
 
+// ── Audio en vivo por UDP (fuera de MQTT) ────────────────────────
+// El audio de voz ya NO viaja por el broker MQTT: va por un socket UDP
+// directo entre el ESP32 y el Edge service. Esto quita el salto del broker
+// y el overhead de PubSubClient (latencia mucho menor) y libera el WiFi/MQTT
+// para el video. El control (START/STOP del micrófono) sí sigue por MQTT.
+#define EDGE_AUDIO_HOST     MQTT_BROKER_HOST  // el Edge corre en la misma PC que el broker
+#define EDGE_AUDIO_PORT     3101              // puerto donde el Edge escucha el mic del ESP32
+#define ESP32_AUDIO_PORT    3102              // puerto donde el ESP32 escucha el audio del portero
+
 // ── Audio capture window ─────────────────────────────────────────
 #define I2S_SAMPLE_RATE     16000
 #define I2S_BUFFER_LEN      512      // samples per DMA block
